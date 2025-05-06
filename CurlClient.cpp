@@ -425,49 +425,6 @@ CurlClient::Response CurlClient::sendRequest(const RequestParams& params, int re
 		updateCookies(response.rawHeaders, m_cookies, true);
 		updateCookies(response.rawHeaders, response.cookies, false);
 
-		// Handle manual redirects
-		if (!mergedParams.disableRedirect && (response.status == 301 || response.status == 302 || response.status == 303 || response.status == 307 || response.status == 308)) {
-			if (redirectCount >= mergedParams.maxRedirect) {
-				// Max redirects reached, return the response as is
-				break;
-			}
-
-			std::string location = response.getHeader("location");
-			if (!location.empty()) {
-				RequestParams redirectParams = params;
-
-				// Handle relative URLs
-				if (location[0] == '/') {
-					// Relative to domain root
-					std::string baseUrl = mergedParams.url;
-					size_t domainEndPos = baseUrl.find('/', baseUrl.find("://") + 3);
-					if (domainEndPos != std::string::npos) {
-						baseUrl = baseUrl.substr(0, domainEndPos);
-					}
-					location = baseUrl + location;
-				}
-				else if (location.find("://") == std::string::npos) {
-					// Relative to current path
-					std::string baseUrl = mergedParams.url;
-					size_t lastSlashPos = baseUrl.find_last_of('/');
-					if (lastSlashPos != std::string::npos && lastSlashPos > 8) { // 8 to skip http(s)://
-						baseUrl = baseUrl.substr(0, lastSlashPos + 1);
-						location = baseUrl + location;
-					}
-				}
-
-				redirectParams.url = location;
-
-				// For 303, always convert to GET
-				if (response.status == 303) {
-					redirectParams.method = "GET";
-					redirectParams.body = "";
-				}
-
-				return sendRequest(redirectParams, redirectCount + 1);
-			}
-		}
-
 		bool shouldRetry = false;
 		if (retryStrategy && currentRetry < maxRetries) {
 			if (retryStrategy->should_retry(response.status) || (res != CURLE_OK && retryStrategy->retry_on_connection_error())) {
